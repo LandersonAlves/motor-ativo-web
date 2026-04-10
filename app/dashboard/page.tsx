@@ -104,9 +104,22 @@ export default function DashboardPage() {
     return contatos
   }
 
+  const loadXLSX = (): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      if ((window as any).XLSX) {
+        resolve((window as any).XLSX)
+        return
+      }
+      const script = document.createElement('script')
+      script.src = 'https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js'
+      script.onload = () => resolve((window as any).XLSX)
+      script.onerror = reject
+      document.head.appendChild(script)
+    })
+  }
+
   const parseExcel = async (file: File): Promise<{telefone: string, nome: string}[]> => {
-    // Carrega SheetJS dinamicamente
-    const XLSX = await import('https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs' as any)
+    const XLSX = await loadXLSX()
     
     return new Promise((resolve, reject) => {
       const reader = new FileReader()
