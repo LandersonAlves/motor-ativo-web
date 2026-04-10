@@ -115,6 +115,23 @@ export default function AdminPage() {
     setSalvando(false)
   }
 
+  const handleAtivarPausar = async (clienteId: string, ativar: boolean) => {
+    try {
+      await fetch('https://n8n.we7tech.com.br/webhook/779475df-8839-4fb5-954a-e0c763a48a6c', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cliente_id: clienteId,
+          ativo: ativar ? 'true' : 'false',
+          status: ativar ? 'ativo' : 'pausado'
+        })
+      })
+      carregarClientes()
+    } catch (error) {
+      console.error('Erro ao atualizar cliente:', error)
+    }
+  }
+
   const getStatusBadge = (cliente: any) => {
     const status = cliente.status || (cliente.ativo === true || cliente.ativo === 'true' ? 'ativo' : 'pendente')
     switch(status) {
@@ -337,11 +354,19 @@ export default function AdminPage() {
                             <Edit className="w-4 h-4" />
                           </button>
                           {cliente.ativo === true || cliente.ativo === 'true' ? (
-                            <button className="p-2 text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg" title="Pausar">
+                            <button 
+                              onClick={() => handleAtivarPausar(cliente.cliente_id, false)}
+                              className="p-2 text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg" 
+                              title="Pausar"
+                            >
                               <Pause className="w-4 h-4" />
                             </button>
                           ) : (
-                            <button className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg" title="Ativar">
+                            <button 
+                              onClick={() => handleAtivarPausar(cliente.cliente_id, true)}
+                              className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg" 
+                              title="Ativar"
+                            >
                               <Play className="w-4 h-4" />
                             </button>
                           )}
