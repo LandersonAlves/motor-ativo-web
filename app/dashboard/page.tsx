@@ -88,7 +88,6 @@ export default function DashboardPage() {
       
       // Se não tem separador, tenta extrair números da linha toda
       if (cols.length === 1) {
-        // Linha pode ser só o telefone ou telefone + nome junto
         const numeros = telefone.replace(/\D/g, '')
         if (numeros.length >= 10) {
           telefone = numeros
@@ -105,6 +104,71 @@ export default function DashboardPage() {
     return contatos
   }
 
+  const parseExcel = async (file: File): Promise<{telefone: string, nome: string}[]> => {
+    // Carrega SheetJS dinamicamente
+    const XLSX = await import('https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs' as any)
+    
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target?.result as ArrayBuffer)
+          const workbook = XLSX.read(data, { type: 'array' })
+          
+          // Pega a primeira aba
+          const sheetName = workbook.SheetNames[0]
+          const sheet = workbook.Sheets[sheetName]
+          
+          // Converte pra JSON
+          const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][]
+          
+          if (jsonData.length < 1) {
+            resolve([])
+            return
+          }
+          
+          // Detecta colunas
+          const headers = jsonData[0].map((h: any) => String(h || '').toLowerCase())
+          let telIndex = headers.findIndex((h: string) => 
+            h.includes('telefone') || h.includes('phone') || h.includes('cel') || h.includes('fone')
+          )
+          let nomeIndex = headers.findIndex((h: string) => 
+            h.includes('nome') || h.includes('name')
+          )
+          
+          // Se não achou cabeçalho, assume primeira coluna = telefone
+          let startRow = 0
+          if (telIndex === -1) {
+            telIndex = 0
+            nomeIndex = 1
+          } else {
+            startRow = 1
+          }
+          
+          const contatos = []
+          for (let i = startRow; i < jsonData.length; i++) {
+            const row = jsonData[i]
+            if (!row || !row[telIndex]) continue
+            
+            const telefone = String(row[telIndex] || '')
+            if (telefone.replace(/\D/g, '').length >= 10) {
+              contatos.push({
+                telefone,
+                nome: nomeIndex >= 0 ? String(row[nomeIndex] || '') : ''
+              })
+            }
+          }
+          
+          resolve(contatos)
+        } catch (err) {
+          reject(err)
+        }
+      }
+      reader.onerror = reject
+      reader.readAsArrayBuffer(file)
+    })
+  }
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file || !cliente) return
@@ -112,23 +176,17 @@ export default function DashboardPage() {
     setUploadStatus('uploading')
     
     try {
-      let text = ''
+      let contatos: {telefone: string, nome: string}[] = []
       
-      // Lê o arquivo como texto
       if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
-        // Para Excel, precisaria de biblioteca - por enquanto avisa
-        alert('Para arquivos Excel (.xlsx/.xls), por favor salve como CSV primeiro.\n\nNo Excel: Arquivo > Salvar Como > CSV')
-        setUploadStatus('idle')
-        e.target.value = ''
-        return
+        contatos = await parseExcel(file)
       } else {
-        text = await file.text()
+        const text = await file.text()
+        contatos = parseFile(text)
       }
       
-      const contatos = parseFile(text)
-      
       if (contatos.length === 0) {
-        alert('Nenhum contato válido encontrado.\n\nVerifique se o arquivo tem telefones com pelo menos 10 dígitos.\n\nFormato esperado:\ntelefone,nome\n11999998888,João Silva')
+        alert('Nenhum contato válido encontrado.\n\nVerifique se o arquivo tem telefones com pelo menos 10 dígitos.')
         setUploadStatus('error')
         e.target.value = ''
         return
@@ -161,6 +219,7 @@ export default function DashboardPage() {
     } catch (error) {
       console.error('Erro no upload:', error)
       setUploadStatus('error')
+      alert('Erro ao processar arquivo. Tente salvar como CSV.')
     }
     
     e.target.value = ''
@@ -489,7 +548,7 @@ export default function DashboardPage() {
             </div>
             <input
               type="file"
-              accept=".csv,.txt,.tsv"
+              accept=".csv,.txt,.tsv,.xlsx,.xls"
               onChange={handleFileUpload}
               className="hidden"
               id="file-upload"
@@ -518,7 +577,7 @@ export default function DashboardPage() {
                 <>
                   <FileSpreadsheet className="w-10 h-10 text-gray-400 mx-auto mb-2" />
                   <p className="text-sm text-gray-500">Arraste um arquivo ou clique para selecionar</p>
-                  <p className="text-xs text-gray-400 mt-1">CSV ou TXT (separado por vírgula, ponto-e-vírgula ou tab)</p>
+                  <p className="text-xs text-gray-400 mt-1">Excel, CSV ou TXT</p>
                 </>
               )}
             </label>
