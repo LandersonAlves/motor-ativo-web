@@ -6,7 +6,6 @@ import {
   MessageSquare, 
   Mail, 
   Upload, 
-  BarChart3, 
   CheckCircle, 
   XCircle,
   Clock,
@@ -14,12 +13,21 @@ import {
   LogOut,
   FileSpreadsheet,
   TrendingUp,
-  RefreshCw
+  RefreshCw,
+  Play,
+  Pause,
+  Settings,
+  Calendar,
+  Users,
+  Target,
+  AlertCircle,
+  Save
 } from 'lucide-react'
 
 export default function DashboardPage() {
   const [usuario, setUsuario] = useState<any>(null)
-  const [dados, setDados] = useState({
+  const [cliente, setCliente] = useState<any>(null)
+  const [stats, setStats] = useState({
     ligacoesHoje: 0,
     atendidas: 0,
     digitou1: 0,
@@ -28,15 +36,37 @@ export default function DashboardPage() {
     semResposta: 0
   })
   const [carregando, setCarregando] = useState(true)
+  const [salvandoConfig, setSalvandoConfig] = useState(false)
+  const [configTemp, setConfigTemp] = useState({
+    horario_inicio: '',
+    horario_fim: '',
+    dias_semana: '',
+    canais_simultaneos: ''
+  })
+  const [mostrarConfig, setMostrarConfig] = useState(false)
   const router = useRouter()
 
-  const carregarDados = async () => {
+  const carregarDados = async (clienteId: string) => {
     setCarregando(true)
     try {
-      const response = await fetch('https://n8n.we7tech.com.br/webhook/dashboard-stats')
-      const data = await response.json()
-      if (data && data[0]) {
-        setDados(data[0])
+      // Buscar dados do cliente
+      const resCliente = await fetch(`https://n8n.we7tech.com.br/webhook/860d0f1e-f0d8-45b3-b954-70df5ff1a32d?cliente_id=${clienteId}`)
+      const dataCliente = await resCliente.json()
+      if (dataCliente && dataCliente[0]) {
+        setCliente(dataCliente[0])
+        setConfigTemp({
+          horario_inicio: dataCliente[0].horario_inicio || '08:00',
+          horario_fim: dataCliente[0].horario_fim || '18:00',
+          dias_semana: dataCliente[0].dias_semana || 'seg,ter,qua,qui,sex',
+          canais_simultaneos: dataCliente[0].canais_simultaneos || '10'
+        })
+      }
+
+      // Buscar estatísticas
+      const resStats = await fetch('https://n8n.we7tech.com.br/webhook/dashboard-stats')
+      const dataStats = await resStats.json()
+      if (dataStats && dataStats[0]) {
+        setStats(dataStats[0])
       }
     } catch (error) {
       console.error('Erro ao carregar dados:', error)
@@ -50,8 +80,13 @@ export default function DashboardPage() {
       router.push('/')
       return
     }
-    setUsuario(JSON.parse(user))
-    carregarDados()
+    const userData = JSON.parse(user)
+    if (userData.tipo === 'admin') {
+      router.push('/admin')
+      return
+    }
+    setUsuario(userData)
+    carregarDados(userData.cliente_id || 'movel')
   }, [router])
 
   const handleLogout = () => {
@@ -59,7 +94,73 @@ export default function DashboardPage() {
     router.push('/')
   }
 
-  if (!usuario) return null
+  const handleIniciarPausar = async () => {
+    if (!cliente) return
+    const novoStatus = cliente.ativo === true || cliente.ativo === 'true' ? false : true
+    try {
+      await fetch('https://n8n.we7tech.com.br/webhook/779475df-8839-4fb5-954a-e0c763a48a6c', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cliente_id: cliente.cliente_id,
+          ativo: novoStatus ? 'true' : 'false',
+          status: novoStatus ? 'ativo' : 'pausado'
+        })
+      })
+      carregarDados(cliente.cliente_id)
+    } catch (error) {
+      console.error('Erro ao atualizar:', error)
+    }
+  }
+
+  const handleSalvarConfig = async () => {
+    if (!cliente) return
+    setSalvandoConfig(true)
+    try {
+      await fetch('https://n8n.we7tech.com.br/webhook/779475df-8839-4fb5-954a-e0c763a48a6c', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cliente_id: cliente.cliente_id,
+          horario_inicio: configTemp.horario_inicio,
+          horario_fim: configTemp.horario_fim,
+          dias_semana: configTemp.dias_semana,
+          canais_simultaneos: configTemp.canais_simultaneos
+        })
+      })
+      setMostrarConfig(false)
+      carregarDados(cliente.cliente_id)
+    } catch (error) {
+      console.error('Erro ao salvar config:', error)
+    }
+    setSalvandoConfig(false)
+  }
+
+  const getStatusCampanha = () => {
+    if (!cliente) return { status: 'carregando', texto: 'Carregando...', cor: 'gray' }
+    
+    const ativo = cliente.ativo === true || cliente.ativo === 'true'
+    const status = cliente.status || (ativo ? 'ativo' : 'pendente')
+    
+    if (status === 'finalizada') return { status: 'finalizada', texto: 'Campanha Finalizada', cor: 'blue', icon: CheckCircle }
+    if (status === 'bloqueado') return { status: 'bloqueado', texto: 'Conta Bloqueada', cor: 'red', icon: XCircle }
+    if (status === 'pausado' || !ativo) return { status: 'pausado', texto: 'Campanha Pausada', cor: 'yellow', icon: Pause }
+    if (status === 'ativo' && ativo) return { status: 'ativo', texto: 'Campanha Ativa', cor: 'green', icon: Play }
+    return { status: 'pendente', texto: 'Aguardando Configuração', cor: 'gray', icon: Clock }
+  }
+
+  const statusCampanha = getStatusCampanha()
+
+  if (!usuario || carregando) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="text-center">
+          <RefreshCw className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-2" />
+          <p className="text-gray-500">Carregando...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -72,24 +173,88 @@ export default function DashboardPage() {
             </div>
             <div>
               <h1 className="font-bold text-gray-800">Motor Ativo</h1>
-              <p className="text-xs text-gray-500">{usuario.nome}</p>
+              <p className="text-xs text-gray-500">{cliente?.nome || usuario.nome}</p>
             </div>
           </div>
-          <button 
-            onClick={handleLogout}
-            className="flex items-center gap-2 text-gray-600 hover:text-red-600 transition"
-          >
-            <LogOut className="w-5 h-5" />
-            <span className="text-sm">Sair</span>
-          </button>
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => carregarDados(cliente?.cliente_id || 'movel')}
+              className="p-2 text-gray-500 hover:text-gray-700"
+              title="Atualizar"
+            >
+              <RefreshCw className="w-5 h-5" />
+            </button>
+            <button 
+              onClick={handleLogout}
+              className="flex items-center gap-2 text-gray-600 hover:text-red-600 transition"
+            >
+              <LogOut className="w-5 h-5" />
+              <span className="text-sm">Sair</span>
+            </button>
+          </div>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8">
+        {/* Status da Campanha */}
+        <div className={`bg-${statusCampanha.cor}-50 border border-${statusCampanha.cor}-200 rounded-xl p-6 mb-6`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className={`w-12 h-12 bg-${statusCampanha.cor}-100 rounded-full flex items-center justify-center`}>
+                {statusCampanha.status === 'ativo' && <Play className={`w-6 h-6 text-green-600`} />}
+                {statusCampanha.status === 'pausado' && <Pause className={`w-6 h-6 text-yellow-600`} />}
+                {statusCampanha.status === 'finalizada' && <CheckCircle className={`w-6 h-6 text-blue-600`} />}
+                {statusCampanha.status === 'bloqueado' && <XCircle className={`w-6 h-6 text-red-600`} />}
+                {statusCampanha.status === 'pendente' && <Clock className={`w-6 h-6 text-gray-600`} />}
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-800">{statusCampanha.texto}</h2>
+                <p className="text-sm text-gray-500">
+                  {cliente?.horario_inicio && cliente?.horario_fim 
+                    ? `Horário: ${cliente.horario_inicio} às ${cliente.horario_fim}`
+                    : 'Horário não configurado'
+                  }
+                  {cliente?.dias_semana && ` • ${cliente.dias_semana}`}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setMostrarConfig(true)}
+                className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
+              >
+                <Settings className="w-4 h-4" />
+                Configurar
+              </button>
+              {statusCampanha.status !== 'bloqueado' && statusCampanha.status !== 'finalizada' && (
+                <button
+                  onClick={handleIniciarPausar}
+                  className={`flex items-center gap-2 px-6 py-2 rounded-lg transition ${
+                    statusCampanha.status === 'ativo'
+                      ? 'bg-yellow-500 text-white hover:bg-yellow-600'
+                      : 'bg-green-500 text-white hover:bg-green-600'
+                  }`}
+                >
+                  {statusCampanha.status === 'ativo' ? (
+                    <>
+                      <Pause className="w-4 h-4" />
+                      Pausar
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-4 h-4" />
+                      Iniciar
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
         {/* Cards de Produtos */}
         <h2 className="text-lg font-semibold text-gray-700 mb-4">Seus Produtos</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          {/* Discador URA */}
           <div className="bg-white rounded-xl p-6 shadow-sm border-2 border-green-500">
             <div className="flex items-center justify-between mb-4">
               <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
@@ -100,31 +265,29 @@ export default function DashboardPage() {
               </span>
             </div>
             <h3 className="font-semibold text-gray-800">Discador URA</h3>
-            <p className="text-sm text-gray-500 mt-1">Ligações automáticas com IA</p>
+            <p className="text-sm text-gray-500 mt-1">{cliente?.canais_simultaneos || 0} canais simultâneos</p>
           </div>
 
-          {/* WhatsApp */}
           <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 opacity-60">
             <div className="flex items-center justify-between mb-4">
               <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
                 <MessageSquare className="w-6 h-6 text-gray-400" />
               </div>
               <span className="px-3 py-1 bg-gray-100 text-gray-500 text-xs font-medium rounded-full">
-                BLOQUEADO
+                EM BREVE
               </span>
             </div>
             <h3 className="font-semibold text-gray-400">Disparo WhatsApp</h3>
             <p className="text-sm text-gray-400 mt-1">Em breve</p>
           </div>
 
-          {/* Email */}
           <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 opacity-60">
             <div className="flex items-center justify-between mb-4">
               <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
                 <Mail className="w-6 h-6 text-gray-400" />
               </div>
               <span className="px-3 py-1 bg-gray-100 text-gray-500 text-xs font-medium rounded-full">
-                BLOQUEADO
+                EM BREVE
               </span>
             </div>
             <h3 className="font-semibold text-gray-400">Disparo Email</h3>
@@ -133,24 +296,14 @@ export default function DashboardPage() {
         </div>
 
         {/* Relatórios */}
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-700">Relatórios de Hoje</h2>
-          <button 
-            onClick={carregarDados}
-            disabled={carregando}
-            className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 ${carregando ? 'animate-spin' : ''}`} />
-            Atualizar
-          </button>
-        </div>
+        <h2 className="text-lg font-semibold text-gray-700 mb-4">Relatórios de Hoje</h2>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
           <div className="bg-white rounded-xl p-4 shadow-sm">
             <div className="flex items-center gap-2 mb-2">
               <Phone className="w-4 h-4 text-blue-500" />
               <span className="text-xs text-gray-500">Ligações</span>
             </div>
-            <p className="text-2xl font-bold text-gray-800">{dados.ligacoesHoje}</p>
+            <p className="text-2xl font-bold text-gray-800">{stats.ligacoesHoje}</p>
           </div>
 
           <div className="bg-white rounded-xl p-4 shadow-sm">
@@ -158,20 +311,20 @@ export default function DashboardPage() {
               <CheckCircle className="w-4 h-4 text-green-500" />
               <span className="text-xs text-gray-500">Atendidas</span>
             </div>
-            <p className="text-2xl font-bold text-green-600">{dados.atendidas}</p>
+            <p className="text-2xl font-bold text-green-600">{stats.atendidas}</p>
             <p className="text-xs text-gray-400">
-              {dados.ligacoesHoje > 0 ? Math.round(dados.atendidas/dados.ligacoesHoje*100) : 0}%
+              {stats.ligacoesHoje > 0 ? Math.round(stats.atendidas/stats.ligacoesHoje*100) : 0}%
             </p>
           </div>
 
           <div className="bg-white rounded-xl p-4 shadow-sm">
             <div className="flex items-center gap-2 mb-2">
               <TrendingUp className="w-4 h-4 text-purple-500" />
-              <span className="text-xs text-gray-500">Digitou 1</span>
+              <span className="text-xs text-gray-500">Interessados</span>
             </div>
-            <p className="text-2xl font-bold text-purple-600">{dados.digitou1}</p>
+            <p className="text-2xl font-bold text-purple-600">{stats.digitou1}</p>
             <p className="text-xs text-gray-400">
-              {dados.ligacoesHoje > 0 ? Math.round(dados.digitou1/dados.ligacoesHoje*100) : 0}%
+              {stats.ligacoesHoje > 0 ? Math.round(stats.digitou1/stats.ligacoesHoje*100) : 0}%
             </p>
           </div>
 
@@ -180,7 +333,7 @@ export default function DashboardPage() {
               <MessageSquare className="w-4 h-4 text-green-500" />
               <span className="text-xs text-gray-500">WhatsApp</span>
             </div>
-            <p className="text-2xl font-bold text-green-600">{dados.whatsappEnviados}</p>
+            <p className="text-2xl font-bold text-green-600">{stats.whatsappEnviados}</p>
           </div>
 
           <div className="bg-white rounded-xl p-4 shadow-sm">
@@ -188,7 +341,7 @@ export default function DashboardPage() {
               <XCircle className="w-4 h-4 text-red-500" />
               <span className="text-xs text-gray-500">Bloqueios</span>
             </div>
-            <p className="text-2xl font-bold text-red-600">{dados.bloqueios}</p>
+            <p className="text-2xl font-bold text-red-600">{stats.bloqueios}</p>
           </div>
 
           <div className="bg-white rounded-xl p-4 shadow-sm">
@@ -196,7 +349,7 @@ export default function DashboardPage() {
               <Clock className="w-4 h-4 text-gray-500" />
               <span className="text-xs text-gray-500">Sem Resp.</span>
             </div>
-            <p className="text-2xl font-bold text-gray-600">{dados.semResposta}</p>
+            <p className="text-2xl font-bold text-gray-600">{stats.semResposta}</p>
           </div>
         </div>
 
@@ -221,36 +374,114 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Campanhas */}
+          {/* Resumo da Campanha */}
           <div className="bg-white rounded-xl p-6 shadow-sm">
             <div className="flex items-center gap-4 mb-4">
               <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                <BarChart3 className="w-6 h-6 text-purple-600" />
+                <Target className="w-6 h-6 text-purple-600" />
               </div>
               <div>
-                <h3 className="font-semibold text-gray-800">Campanhas</h3>
-                <p className="text-sm text-gray-500">Gerencie suas campanhas ativas</p>
+                <h3 className="font-semibold text-gray-800">Resumo da Campanha</h3>
+                <p className="text-sm text-gray-500">Configurações atuais</p>
               </div>
             </div>
             <div className="space-y-3">
               <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span className="text-sm font-medium">Campanha Claro Fibra</span>
-                </div>
-                <span className="text-xs text-gray-500">{dados.ligacoesHoje} ligações</span>
+                <span className="text-sm text-gray-600">Contexto URA</span>
+                <span className="text-sm font-medium text-gray-800">{cliente?.contexto_ura || '-'}</span>
               </div>
               <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                  <span className="text-sm font-medium">Campanha Proteção</span>
-                </div>
-                <span className="text-xs text-gray-500">Pausada</span>
+                <span className="text-sm text-gray-600">Canais Simultâneos</span>
+                <span className="text-sm font-medium text-gray-800">{cliente?.canais_simultaneos || '-'}</span>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <span className="text-sm text-gray-600">Cadência</span>
+                <span className="text-sm font-medium text-gray-800">{cliente?.cadencia_segundos || '-'}s</span>
               </div>
             </div>
           </div>
         </div>
       </main>
+
+      {/* Modal Configurações */}
+      {mostrarConfig && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b">
+              <h3 className="text-xl font-bold text-gray-800">Configurações da Campanha</h3>
+              <button 
+                onClick={() => setMostrarConfig(false)}
+                className="p-2 text-gray-400 hover:text-gray-600 rounded-lg"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Horário Início</label>
+                  <input
+                    type="time"
+                    value={configTemp.horario_inicio}
+                    onChange={(e) => setConfigTemp({...configTemp, horario_inicio: e.target.value})}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Horário Fim</label>
+                  <input
+                    type="time"
+                    value={configTemp.horario_fim}
+                    onChange={(e) => setConfigTemp({...configTemp, horario_fim: e.target.value})}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Dias da Semana</label>
+                <input
+                  type="text"
+                  value={configTemp.dias_semana}
+                  onChange={(e) => setConfigTemp({...configTemp, dias_semana: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  placeholder="seg,ter,qua,qui,sex"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Canais Simultâneos</label>
+                <input
+                  type="number"
+                  value={configTemp.canais_simultaneos}
+                  onChange={(e) => setConfigTemp({...configTemp, canais_simultaneos: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  min="1"
+                  max="100"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setMostrarConfig(false)}
+                  className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleSalvarConfig}
+                  disabled={salvandoConfig}
+                  className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+                >
+                  <Save className="w-4 h-4" />
+                  {salvandoConfig ? 'Salvando...' : 'Salvar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
