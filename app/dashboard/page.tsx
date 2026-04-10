@@ -47,23 +47,58 @@ export default function DashboardPage() {
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle')
   const router = useRouter()
 
-  const parseCSV = (text: string) => {
-    const lines = text.split('\n').filter(line => line.trim())
-    if (lines.length < 2) return []
+  const parseFile = (text: string) => {
+    const lines = text.split(/\r?\n/).filter(line => line.trim())
+    if (lines.length < 1) return []
     
-    const headers = lines[0].toLowerCase().split(/[,;]/).map(h => h.trim().replace(/"/g, ''))
-    const telIndex = headers.findIndex(h => h.includes('telefone') || h.includes('phone') || h.includes('cel'))
-    const nomeIndex = headers.findIndex(h => h.includes('nome') || h.includes('name'))
+    // Detecta separador (vírgula, ponto-e-vírgula, tab)
+    const firstLine = lines[0]
+    let separator = ','
+    if (firstLine.includes('\t')) separator = '\t'
+    else if (firstLine.includes(';')) separator = ';'
     
-    if (telIndex === -1) return []
+    // Tenta detectar se tem cabeçalho
+    const firstCols = firstLine.toLowerCase().split(separator).map(c => c.trim().replace(/"/g, ''))
+    const hasHeader = firstCols.some(c => 
+      c.includes('telefone') || c.includes('phone') || c.includes('cel') || 
+      c.includes('nome') || c.includes('name') || c.includes('fone')
+    )
+    
+    let telIndex = 0
+    let nomeIndex = 1
+    let startLine = 0
+    
+    if (hasHeader) {
+      telIndex = firstCols.findIndex(h => 
+        h.includes('telefone') || h.includes('phone') || h.includes('cel') || h.includes('fone')
+      )
+      nomeIndex = firstCols.findIndex(h => 
+        h.includes('nome') || h.includes('name')
+      )
+      if (telIndex === -1) telIndex = 0
+      startLine = 1
+    }
     
     const contatos = []
-    for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].split(/[,;]/).map(c => c.trim().replace(/"/g, ''))
-      if (cols[telIndex]) {
+    for (let i = startLine; i < lines.length; i++) {
+      const cols = lines[i].split(separator).map(c => c.trim().replace(/"/g, ''))
+      
+      // Pega o valor do telefone
+      let telefone = cols[telIndex] || ''
+      
+      // Se não tem separador, tenta extrair números da linha toda
+      if (cols.length === 1) {
+        // Linha pode ser só o telefone ou telefone + nome junto
+        const numeros = telefone.replace(/\D/g, '')
+        if (numeros.length >= 10) {
+          telefone = numeros
+        }
+      }
+      
+      if (telefone && telefone.replace(/\D/g, '').length >= 10) {
         contatos.push({
-          telefone: cols[telIndex],
-          nome: nomeIndex >= 0 ? cols[nomeIndex] || '' : ''
+          telefone: telefone,
+          nome: nomeIndex >= 0 && nomeIndex < cols.length ? cols[nomeIndex] || '' : ''
         })
       }
     }
@@ -77,12 +112,32 @@ export default function DashboardPage() {
     setUploadStatus('uploading')
     
     try {
-      const text = await file.text()
-      const contatos = parseCSV(text)
+      let text = ''
+      
+      // Lê o arquivo como texto
+      if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+        // Para Excel, precisaria de biblioteca - por enquanto avisa
+        alert('Para arquivos Excel (.xlsx/.xls), por favor salve como CSV primeiro.\n\nNo Excel: Arquivo > Salvar Como > CSV')
+        setUploadStatus('idle')
+        e.target.value = ''
+        return
+      } else {
+        text = await file.text()
+      }
+      
+      const contatos = parseFile(text)
       
       if (contatos.length === 0) {
-        alert('Nenhum contato encontrado. Verifique se o CSV tem coluna "telefone".')
+        alert('Nenhum contato válido encontrado.\n\nVerifique se o arquivo tem telefones com pelo menos 10 dígitos.\n\nFormato esperado:\ntelefone,nome\n11999998888,João Silva')
         setUploadStatus('error')
+        e.target.value = ''
+        return
+      }
+      
+      const confirmar = confirm(`Encontrados ${contatos.length} contatos.\n\nDeseja enviar para a campanha?`)
+      if (!confirmar) {
+        setUploadStatus('idle')
+        e.target.value = ''
         return
       }
       
@@ -98,6 +153,7 @@ export default function DashboardPage() {
       
       if (response.ok) {
         setUploadStatus('success')
+        alert(`${contatos.length} contatos enviados com sucesso!`)
         setTimeout(() => setUploadStatus('idle'), 3000)
       } else {
         setUploadStatus('error')
@@ -433,7 +489,7 @@ export default function DashboardPage() {
             </div>
             <input
               type="file"
-              accept=".csv,.xlsx,.xls"
+              accept=".csv,.txt,.tsv"
               onChange={handleFileUpload}
               className="hidden"
               id="file-upload"
@@ -462,7 +518,7 @@ export default function DashboardPage() {
                 <>
                   <FileSpreadsheet className="w-10 h-10 text-gray-400 mx-auto mb-2" />
                   <p className="text-sm text-gray-500">Arraste um arquivo ou clique para selecionar</p>
-                  <p className="text-xs text-gray-400 mt-1">CSV com colunas: telefone, nome</p>
+                  <p className="text-xs text-gray-400 mt-1">CSV ou TXT (separado por vírgula, ponto-e-vírgula ou tab)</p>
                 </>
               )}
             </label>
