@@ -44,7 +44,71 @@ export default function DashboardPage() {
     canais_simultaneos: ''
   })
   const [mostrarConfig, setMostrarConfig] = useState(false)
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle')
   const router = useRouter()
+
+  const parseCSV = (text: string) => {
+    const lines = text.split('\n').filter(line => line.trim())
+    if (lines.length < 2) return []
+    
+    const headers = lines[0].toLowerCase().split(/[,;]/).map(h => h.trim().replace(/"/g, ''))
+    const telIndex = headers.findIndex(h => h.includes('telefone') || h.includes('phone') || h.includes('cel'))
+    const nomeIndex = headers.findIndex(h => h.includes('nome') || h.includes('name'))
+    
+    if (telIndex === -1) return []
+    
+    const contatos = []
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split(/[,;]/).map(c => c.trim().replace(/"/g, ''))
+      if (cols[telIndex]) {
+        contatos.push({
+          telefone: cols[telIndex],
+          nome: nomeIndex >= 0 ? cols[nomeIndex] || '' : ''
+        })
+      }
+    }
+    return contatos
+  }
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !cliente) return
+    
+    setUploadStatus('uploading')
+    
+    try {
+      const text = await file.text()
+      const contatos = parseCSV(text)
+      
+      if (contatos.length === 0) {
+        alert('Nenhum contato encontrado. Verifique se o CSV tem coluna "telefone".')
+        setUploadStatus('error')
+        return
+      }
+      
+      const response = await fetch('https://n8n.we7tech.com.br/webhook/d9d44587-e566-4ef7-91f8-8f383391781e', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cliente_id: cliente.cliente_id,
+          sheet_id: cliente.sheet_id,
+          contatos
+        })
+      })
+      
+      if (response.ok) {
+        setUploadStatus('success')
+        setTimeout(() => setUploadStatus('idle'), 3000)
+      } else {
+        setUploadStatus('error')
+      }
+    } catch (error) {
+      console.error('Erro no upload:', error)
+      setUploadStatus('error')
+    }
+    
+    e.target.value = ''
+  }
 
   const carregarDados = async (clienteId: string) => {
     setCarregando(true)
@@ -367,11 +431,41 @@ export default function DashboardPage() {
                 <p className="text-sm text-gray-500">Envie sua lista de contatos</p>
               </div>
             </div>
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-500 transition cursor-pointer">
-              <FileSpreadsheet className="w-10 h-10 text-gray-400 mx-auto mb-2" />
-              <p className="text-sm text-gray-500">Arraste um arquivo ou clique para selecionar</p>
-              <p className="text-xs text-gray-400 mt-1">CSV ou XLSX até 10MB</p>
-            </div>
+            <input
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              onChange={handleFileUpload}
+              className="hidden"
+              id="file-upload"
+            />
+            <label 
+              htmlFor="file-upload"
+              className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-500 transition cursor-pointer block"
+            >
+              {uploadStatus === 'uploading' ? (
+                <>
+                  <RefreshCw className="w-10 h-10 text-blue-500 mx-auto mb-2 animate-spin" />
+                  <p className="text-sm text-blue-600">Enviando...</p>
+                </>
+              ) : uploadStatus === 'success' ? (
+                <>
+                  <CheckCircle className="w-10 h-10 text-green-500 mx-auto mb-2" />
+                  <p className="text-sm text-green-600">Upload realizado com sucesso!</p>
+                  <p className="text-xs text-gray-400 mt-1">Clique para enviar outra</p>
+                </>
+              ) : uploadStatus === 'error' ? (
+                <>
+                  <XCircle className="w-10 h-10 text-red-500 mx-auto mb-2" />
+                  <p className="text-sm text-red-600">Erro no upload. Tente novamente.</p>
+                </>
+              ) : (
+                <>
+                  <FileSpreadsheet className="w-10 h-10 text-gray-400 mx-auto mb-2" />
+                  <p className="text-sm text-gray-500">Arraste um arquivo ou clique para selecionar</p>
+                  <p className="text-xs text-gray-400 mt-1">CSV com colunas: telefone, nome</p>
+                </>
+              )}
+            </label>
           </div>
 
           {/* Resumo da Campanha */}
