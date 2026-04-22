@@ -430,14 +430,14 @@ export default function AdminPage() {
                             className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg" 
                             title="Ver detalhes"
                           >
-                            <Eye className="w-4 h-4" />
+                            <Eye className="w-4 h-4 pointer-events-none" />
                           </button>
                           <button 
                             onClick={() => handleAbrirEditar(cliente)}
                             className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg" 
                             title="Editar"
                           >
-                            <Edit className="w-4 h-4" />
+                            <Edit className="w-4 h-4 pointer-events-none" />
                           </button>
                           {cliente.ativo === true || cliente.ativo === 'true' ? (
                             <button 
@@ -445,7 +445,7 @@ export default function AdminPage() {
                               className="p-2 text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg" 
                               title="Pausar"
                             >
-                              <Pause className="w-4 h-4" />
+                              <Pause className="w-4 h-4 pointer-events-none" />
                             </button>
                           ) : (
                             <button 
@@ -453,7 +453,7 @@ export default function AdminPage() {
                               className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg" 
                               title="Ativar"
                             >
-                              <Play className="w-4 h-4" />
+                              <Play className="w-4 h-4 pointer-events-none" />
                             </button>
                           )}
                         </div>
