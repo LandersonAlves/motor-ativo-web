@@ -425,36 +425,48 @@ export default function AdminPage() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-1">
-                          <button 
-                            onClick={() => handleVerDetalhes(cliente)}
-                            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg" 
+                          <div 
+                            role="button"
+                            tabIndex={0}
+                            onClick={(e) => { e.stopPropagation(); handleVerDetalhes(cliente); }}
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleVerDetalhes(cliente); }}
+                            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg cursor-pointer" 
                             title="Ver detalhes"
                           >
-                            <Eye className="w-4 h-4" style={{ pointerEvents: 'none' }} />
-                          </button>
-                          <button 
-                            onClick={() => handleAbrirEditar(cliente)}
-                            className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg" 
+                            <Eye className="w-4 h-4" />
+                          </div>
+                          <div 
+                            role="button"
+                            tabIndex={0}
+                            onClick={(e) => { e.stopPropagation(); handleAbrirEditar(cliente); }}
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleAbrirEditar(cliente); }}
+                            className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg cursor-pointer" 
                             title="Editar"
                           >
-                            <Edit className="w-4 h-4" style={{ pointerEvents: 'none' }} />
-                          </button>
+                            <Edit className="w-4 h-4" />
+                          </div>
                           {cliente.ativo === true || cliente.ativo === 'true' ? (
-                            <button 
-                              onClick={() => handleAtivarPausar(cliente.cliente_id, false)}
-                              className="p-2 text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg" 
+                            <div 
+                              role="button"
+                              tabIndex={0}
+                              onClick={(e) => { e.stopPropagation(); handleAtivarPausar(cliente.cliente_id, false); }}
+                              onKeyDown={(e) => { if (e.key === 'Enter') handleAtivarPausar(cliente.cliente_id, false); }}
+                              className="p-2 text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg cursor-pointer" 
                               title="Pausar"
                             >
-                              <Pause className="w-4 h-4" style={{ pointerEvents: 'none' }} />
-                            </button>
+                              <Pause className="w-4 h-4" />
+                            </div>
                           ) : (
-                            <button 
-                              onClick={() => handleAtivarPausar(cliente.cliente_id, true)}
-                              className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg" 
+                            <div 
+                              role="button"
+                              tabIndex={0}
+                              onClick={(e) => { e.stopPropagation(); handleAtivarPausar(cliente.cliente_id, true); }}
+                              onKeyDown={(e) => { if (e.key === 'Enter') handleAtivarPausar(cliente.cliente_id, true); }}
+                              className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg cursor-pointer" 
                               title="Ativar"
                             >
-                              <Play className="w-4 h-4" style={{ pointerEvents: 'none' }} />
-                            </button>
+                              <Play className="w-4 h-4" />
+                            </div>
                           )}
                         </div>
                       </td>
