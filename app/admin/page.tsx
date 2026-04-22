@@ -430,14 +430,14 @@ export default function AdminPage() {
                             className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg" 
                             title="Ver detalhes"
                           >
-                            <Eye className="w-4 h-4 pointer-events-none" />
+                            <Eye className="w-4 h-4" style={{ pointerEvents: 'none' }} />
                           </button>
                           <button 
                             onClick={() => handleAbrirEditar(cliente)}
                             className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg" 
                             title="Editar"
                           >
-                            <Edit className="w-4 h-4 pointer-events-none" />
+                            <Edit className="w-4 h-4" style={{ pointerEvents: 'none' }} />
                           </button>
                           {cliente.ativo === true || cliente.ativo === 'true' ? (
                             <button 
@@ -445,7 +445,7 @@ export default function AdminPage() {
                               className="p-2 text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg" 
                               title="Pausar"
                             >
-                              <Pause className="w-4 h-4 pointer-events-none" />
+                              <Pause className="w-4 h-4" style={{ pointerEvents: 'none' }} />
                             </button>
                           ) : (
                             <button 
@@ -453,7 +453,7 @@ export default function AdminPage() {
                               className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg" 
                               title="Ativar"
                             >
-                              <Play className="w-4 h-4 pointer-events-none" />
+                              <Play className="w-4 h-4" style={{ pointerEvents: 'none' }} />
                             </button>
                           )}
                         </div>
