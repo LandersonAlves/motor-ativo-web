@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Phone, Lock, Zap } from 'lucide-react'
+import { Mail, Lock, Zap, AlertCircle } from 'lucide-react'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -15,26 +15,35 @@ export default function LoginPage() {
     setLoading(true)
     setErro('')
 
-    // Simulação de login - depois conecta com backend real
-    if (email === 'admin@motorativo.com' && senha === '123456') {
-      localStorage.setItem('usuario', JSON.stringify({ 
-        nome: 'Administrador', 
-        email: email,
-        tipo: 'admin'
-      }))
-      router.push('/admin')
-    } else if (email === 'cliente@motormovel.com' && senha === '123456') {
-      localStorage.setItem('usuario', JSON.stringify({ 
-        nome: 'Motor Movel', 
-        email: email,
-        tipo: 'cliente',
-        cliente_id: 'movel',
-        plano: 'Discador URA'
-      }))
-      router.push('/dashboard')
-    } else {
-      setErro('Email ou senha incorretos')
+    try {
+      // Chama API real de login
+      const response = await fetch('https://n8n.we7tech.com.br/webhook/9fb34900-74c9-4c37-962e-9cd4d31c0fd3', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, senha })
+      })
+
+      const data = await response.json()
+
+      if (data.sucesso) {
+        // Salva token e dados do usuário
+        localStorage.setItem('token', data.token)
+        localStorage.setItem('usuario', JSON.stringify(data.usuario))
+
+        // Redireciona baseado no tipo
+        if (data.usuario.tipo === 'admin') {
+          router.push('/admin')
+        } else {
+          router.push('/dashboard')
+        }
+      } else {
+        setErro(data.erro || 'Email ou senha incorretos')
+      }
+    } catch (error) {
+      console.error('Erro no login:', error)
+      setErro('Erro ao conectar com o servidor. Tente novamente.')
     }
+
     setLoading(false)
   }
 
@@ -57,7 +66,7 @@ export default function LoginPage() {
               Email
             </label>
             <div className="relative">
-              <Phone className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+              <Mail className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
               <input
                 type="email"
                 value={email}
@@ -87,7 +96,8 @@ export default function LoginPage() {
           </div>
 
           {erro && (
-            <div className="mb-4 p-3 bg-red-100 border border-red-300 text-red-700 rounded-lg text-sm">
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
               {erro}
             </div>
           )}
@@ -95,17 +105,23 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            {loading ? 'Entrando...' : 'Entrar'}
+            {loading ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                Entrando...
+              </>
+            ) : (
+              'Entrar'
+            )}
           </button>
         </form>
 
-        {/* Info de teste */}
-        <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-          <p className="text-xs text-gray-500 text-center">
-            <strong>Admin:</strong> admin@motorativo.com / 123456<br/>
-            <strong>Cliente:</strong> cliente@motormovel.com / 123456
+        {/* Rodapé */}
+        <div className="mt-8 text-center">
+          <p className="text-xs text-gray-400">
+            © 2026 Motor Ativo - WE7Tech
           </p>
         </div>
       </div>
