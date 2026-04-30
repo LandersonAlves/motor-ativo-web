@@ -329,7 +329,7 @@ export default function DashboardPage() {
 
       await carregarCampanhas(clienteId)
 
-      const resStats = await fetch('https://n8n.we7tech.com.br/webhook/dashboard-stats')
+      const resStats = await fetch(`https://n8n.we7tech.com.br/webhook/dashboard-stats?cliente_id=${clienteId}`)
       const dataStats = await resStats.json()
       if (dataStats && dataStats[0]) {
         setStats(dataStats[0])
