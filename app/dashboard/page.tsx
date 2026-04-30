@@ -21,12 +21,16 @@ import {
   Users,
   Target,
   AlertCircle,
-  Save
+  Save,
+  Plus,
+  FolderOpen
 } from 'lucide-react'
 
 export default function DashboardPage() {
   const [usuario, setUsuario] = useState<any>(null)
   const [cliente, setCliente] = useState<any>(null)
+  const [campanhas, setCampanhas] = useState<any[]>([])
+  const [campanhaSelecionada, setCampanhaSelecionada] = useState<string>('')
   const [stats, setStats] = useState({
     ligacoesHoje: 0,
     atendidas: 0,
@@ -44,6 +48,9 @@ export default function DashboardPage() {
     canais_simultaneos: ''
   })
   const [mostrarConfig, setMostrarConfig] = useState(false)
+  const [mostrarNovaCampanha, setMostrarNovaCampanha] = useState(false)
+  const [novaCampanhaNome, setNovaCampanhaNome] = useState('')
+  const [criandoCampanha, setCriandoCampanha] = useState(false)
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle')
   const router = useRouter()
 
@@ -51,13 +58,11 @@ export default function DashboardPage() {
     const lines = text.split(/\r?\n/).filter(line => line.trim())
     if (lines.length < 1) return []
     
-    // Detecta separador (vírgula, ponto-e-vírgula, tab)
     const firstLine = lines[0]
     let separator = ','
     if (firstLine.includes('\t')) separator = '\t'
     else if (firstLine.includes(';')) separator = ';'
     
-    // Tenta detectar se tem cabeçalho
     const firstCols = firstLine.toLowerCase().split(separator).map(c => c.trim().replace(/"/g, ''))
     const hasHeader = firstCols.some(c => 
       c.includes('telefone') || c.includes('phone') || c.includes('cel') || 
@@ -82,11 +87,8 @@ export default function DashboardPage() {
     const contatos = []
     for (let i = startLine; i < lines.length; i++) {
       const cols = lines[i].split(separator).map(c => c.trim().replace(/"/g, ''))
-      
-      // Pega o valor do telefone
       let telefone = cols[telIndex] || ''
       
-      // Se não tem separador, tenta extrair números da linha toda
       if (cols.length === 1) {
         const numeros = telefone.replace(/\D/g, '')
         if (numeros.length >= 10) {
@@ -127,12 +129,8 @@ export default function DashboardPage() {
         try {
           const data = new Uint8Array(e.target?.result as ArrayBuffer)
           const workbook = XLSX.read(data, { type: 'array' })
-          
-          // Pega a primeira aba
           const sheetName = workbook.SheetNames[0]
           const sheet = workbook.Sheets[sheetName]
-          
-          // Converte pra JSON
           const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][]
           
           if (jsonData.length < 1) {
@@ -140,7 +138,6 @@ export default function DashboardPage() {
             return
           }
           
-          // Detecta colunas
           const headers = jsonData[0].map((h: any) => String(h || '').toLowerCase())
           let telIndex = headers.findIndex((h: string) => 
             h.includes('telefone') || h.includes('phone') || h.includes('cel') || h.includes('fone')
@@ -149,7 +146,6 @@ export default function DashboardPage() {
             h.includes('nome') || h.includes('name')
           )
           
-          // Se não achou cabeçalho, assume primeira coluna = telefone
           let startRow = 0
           if (telIndex === -1) {
             telIndex = 0
@@ -186,6 +182,12 @@ export default function DashboardPage() {
     const file = e.target.files?.[0]
     if (!file || !cliente) return
     
+    if (!campanhaSelecionada) {
+      alert('Selecione uma campanha antes de fazer upload.')
+      e.target.value = ''
+      return
+    }
+    
     setUploadStatus('uploading')
     
     try {
@@ -205,7 +207,7 @@ export default function DashboardPage() {
         return
       }
       
-      const confirmar = confirm(`Encontrados ${contatos.length} contatos.\n\nDeseja enviar para a campanha?`)
+      const confirmar = confirm(`Encontrados ${contatos.length} contatos.\n\nDeseja enviar para a campanha "${campanhaSelecionada}"?`)
       if (!confirmar) {
         setUploadStatus('idle')
         e.target.value = ''
@@ -218,14 +220,16 @@ export default function DashboardPage() {
         body: JSON.stringify({
           cliente_id: cliente.cliente_id,
           sheet_id: cliente.sheet_id,
+          campanha: campanhaSelecionada,
           contatos
         })
       })
       
       if (response.ok) {
         setUploadStatus('success')
-        alert(`${contatos.length} contatos enviados com sucesso!`)
+        alert(`${contatos.length} contatos enviados para a campanha "${campanhaSelecionada}"!`)
         setTimeout(() => setUploadStatus('idle'), 3000)
+        carregarCampanhas(cliente.cliente_id)
       } else {
         setUploadStatus('error')
       }
@@ -238,10 +242,76 @@ export default function DashboardPage() {
     e.target.value = ''
   }
 
+  const carregarCampanhas = async (clienteId: string) => {
+    try {
+      const res = await fetch(`https://n8n.we7tech.com.br/webhook/listar-campanhas?cliente_id=${clienteId}`)
+      const data = await res.json()
+      if (Array.isArray(data)) {
+        setCampanhas(data)
+        if (data.length > 0 && !campanhaSelecionada) {
+          const ativa = data.find((c: any) => c.status === 'ativa') || data[0]
+          setCampanhaSelecionada(ativa.nome_campanha)
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao carregar campanhas:', error)
+    }
+  }
+
+  const handleCriarCampanha = async () => {
+    if (!novaCampanhaNome.trim() || !cliente) return
+    
+    const nomeFormatado = novaCampanhaNome.trim().toLowerCase().replace(/\s+/g, '_')
+    
+    setCriandoCampanha(true)
+    try {
+      const response = await fetch('https://n8n.we7tech.com.br/webhook/criar-campanha', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cliente_id: cliente.cliente_id,
+          nome_campanha: nomeFormatado
+        })
+      })
+      
+      if (response.ok) {
+        alert(`Campanha "${nomeFormatado}" criada com sucesso!`)
+        setMostrarNovaCampanha(false)
+        setNovaCampanhaNome('')
+        carregarCampanhas(cliente.cliente_id)
+        setCampanhaSelecionada(nomeFormatado)
+      } else {
+        alert('Erro ao criar campanha. Tente novamente.')
+      }
+    } catch (error) {
+      console.error('Erro ao criar campanha:', error)
+      alert('Erro ao criar campanha. Tente novamente.')
+    }
+    setCriandoCampanha(false)
+  }
+
+  const handleAtivarCampanha = async (nomeCampanha: string) => {
+    if (!cliente) return
+    
+    try {
+      await fetch('https://n8n.we7tech.com.br/webhook/779475df-8839-4fb5-954a-e0c763a48a6c', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cliente_id: cliente.cliente_id,
+          campanha_ativa: nomeCampanha
+        })
+      })
+      setCampanhaSelecionada(nomeCampanha)
+      carregarDados(cliente.cliente_id)
+    } catch (error) {
+      console.error('Erro ao ativar campanha:', error)
+    }
+  }
+
   const carregarDados = async (clienteId: string) => {
     setCarregando(true)
     try {
-      // Buscar dados do cliente
       const resCliente = await fetch(`https://n8n.we7tech.com.br/webhook/860d0f1e-f0d8-45b3-b954-70df5ff1a32d?cliente_id=${clienteId}`)
       const dataCliente = await resCliente.json()
       if (dataCliente && dataCliente[0]) {
@@ -252,9 +322,13 @@ export default function DashboardPage() {
           dias_semana: dataCliente[0].dias_semana || 'seg,ter,qua,qui,sex',
           canais_simultaneos: dataCliente[0].canais_simultaneos || '10'
         })
+        if (dataCliente[0].campanha_ativa) {
+          setCampanhaSelecionada(dataCliente[0].campanha_ativa)
+        }
       }
 
-      // Buscar estatísticas
+      await carregarCampanhas(clienteId)
+
       const resStats = await fetch('https://n8n.we7tech.com.br/webhook/dashboard-stats')
       const dataStats = await resStats.json()
       if (dataStats && dataStats[0]) {
@@ -288,14 +362,14 @@ export default function DashboardPage() {
 
   const handleIniciarPausar = async () => {
     if (!cliente) return
-    const novoStatus = cliente.ativo === true || cliente.ativo === 'true' ? false : true
+    const novoStatus = cliente.ativo === true || cliente.ativo === 'true' || cliente.ativo === 'TRUE' ? false : true
     try {
       await fetch('https://n8n.we7tech.com.br/webhook/779475df-8839-4fb5-954a-e0c763a48a6c', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           cliente_id: cliente.cliente_id,
-          ativo: novoStatus ? 'true' : 'false',
+          ativo: novoStatus ? 'TRUE' : 'FALSE',
           status: novoStatus ? 'ativo' : 'pausado'
         })
       })
@@ -331,7 +405,7 @@ export default function DashboardPage() {
   const getStatusCampanha = () => {
     if (!cliente) return { status: 'carregando', texto: 'Carregando...', cor: 'gray' }
     
-    const ativo = cliente.ativo === true || cliente.ativo === 'true'
+    const ativo = cliente.ativo === true || cliente.ativo === 'true' || cliente.ativo === 'TRUE'
     const status = cliente.status || (ativo ? 'ativo' : 'pendente')
     
     if (status === 'finalizada') return { status: 'finalizada', texto: 'Campanha Finalizada', cor: 'blue', icon: CheckCircle }
@@ -402,8 +476,10 @@ export default function DashboardPage() {
               <div>
                 <h2 className="text-xl font-bold text-gray-800">{statusCampanha.texto}</h2>
                 <p className="text-sm text-gray-500">
+                  {cliente?.campanha_ativa && <span className="font-medium text-blue-600">Campanha: {cliente.campanha_ativa}</span>}
+                  {cliente?.campanha_ativa && ' • '}
                   {cliente?.horario_inicio && cliente?.horario_fim 
-                    ? `Horário: ${cliente.horario_inicio} às ${cliente.horario_fim}`
+                    ? `${cliente.horario_inicio} às ${cliente.horario_fim}`
                     : 'Horário não configurado'
                   }
                   {cliente?.dias_semana && ` • ${cliente.dias_semana}`}
@@ -442,6 +518,60 @@ export default function DashboardPage() {
               )}
             </div>
           </div>
+        </div>
+
+        {/* Campanhas */}
+        <div className="bg-white rounded-xl p-6 shadow-sm mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <FolderOpen className="w-5 h-5 text-blue-600" />
+              <h2 className="text-lg font-semibold text-gray-800">Suas Campanhas</h2>
+            </div>
+            <button
+              onClick={() => setMostrarNovaCampanha(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+            >
+              <Plus className="w-4 h-4" />
+              Nova Campanha
+            </button>
+          </div>
+          
+          {campanhas.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <FolderOpen className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+              <p>Nenhuma campanha criada ainda.</p>
+              <p className="text-sm">Clique em "Nova Campanha" para começar.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {campanhas.map((campanha, index) => (
+                <div 
+                  key={index}
+                  className={`border rounded-lg p-4 cursor-pointer transition ${
+                    campanhaSelecionada === campanha.nome_campanha 
+                      ? 'border-blue-500 bg-blue-50' 
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                  onClick={() => handleAtivarCampanha(campanha.nome_campanha)}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-medium text-gray-800">{campanha.nome_campanha}</h3>
+                    {campanhaSelecionada === campanha.nome_campanha && (
+                      <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">Ativa</span>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between text-sm text-gray-500">
+                    <span>{campanha.total_leads || 0} leads</span>
+                    <span className={`px-2 py-0.5 rounded text-xs ${
+                      campanha.status === 'ativa' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {campanha.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Cards de Produtos */}
@@ -556,7 +686,11 @@ export default function DashboardPage() {
               </div>
               <div>
                 <h3 className="font-semibold text-gray-800">Upload de Planilha</h3>
-                <p className="text-sm text-gray-500">Envie sua lista de contatos</p>
+                <p className="text-sm text-gray-500">
+                  {campanhaSelecionada 
+                    ? `Enviar para: ${campanhaSelecionada}` 
+                    : 'Selecione uma campanha primeiro'}
+                </p>
               </div>
             </div>
             <input
@@ -565,10 +699,15 @@ export default function DashboardPage() {
               onChange={handleFileUpload}
               className="hidden"
               id="file-upload"
+              disabled={!campanhaSelecionada}
             />
             <label 
               htmlFor="file-upload"
-              className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-500 transition cursor-pointer block"
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition block ${
+                campanhaSelecionada 
+                  ? 'border-gray-300 hover:border-blue-500 cursor-pointer' 
+                  : 'border-gray-200 cursor-not-allowed opacity-50'
+              }`}
             >
               {uploadStatus === 'uploading' ? (
                 <>
@@ -608,6 +747,10 @@ export default function DashboardPage() {
               </div>
             </div>
             <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <span className="text-sm text-gray-600">Campanha Ativa</span>
+                <span className="text-sm font-medium text-blue-600">{cliente?.campanha_ativa || '-'}</span>
+              </div>
               <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <span className="text-sm text-gray-600">Contexto URA</span>
                 <span className="text-sm font-medium text-gray-800">{cliente?.contexto_ura || '-'}</span>
@@ -698,6 +841,54 @@ export default function DashboardPage() {
                 >
                   <Save className="w-4 h-4" />
                   {salvandoConfig ? 'Salvando...' : 'Salvar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Nova Campanha */}
+      {mostrarNovaCampanha && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b">
+              <h3 className="text-xl font-bold text-gray-800">Nova Campanha</h3>
+              <button 
+                onClick={() => setMostrarNovaCampanha(false)}
+                className="p-2 text-gray-400 hover:text-gray-600 rounded-lg"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nome da Campanha</label>
+                <input
+                  type="text"
+                  value={novaCampanhaNome}
+                  onChange={(e) => setNovaCampanhaNome(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  placeholder="Ex: Promoção Maio, Clientes Inativos..."
+                />
+                <p className="text-xs text-gray-400 mt-1">O nome será formatado automaticamente (sem espaços ou acentos)</p>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setMostrarNovaCampanha(false)}
+                  className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleCriarCampanha}
+                  disabled={criandoCampanha || !novaCampanhaNome.trim()}
+                  className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+                >
+                  <Plus className="w-4 h-4" />
+                  {criandoCampanha ? 'Criando...' : 'Criar Campanha'}
                 </button>
               </div>
             </div>
