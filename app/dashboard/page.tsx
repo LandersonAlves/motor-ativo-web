@@ -417,6 +417,9 @@ export default function DashboardPage() {
 
   const statusCampanha = getStatusCampanha()
 
+  // Módulos do usuário logado
+  const modulosAtivos = (usuario?.modulos || 'motor_ativo').split(',').map((m: string) => m.trim())
+
   if (!usuario || carregando) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
@@ -574,47 +577,41 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Cards de Produtos */}
+        {/* Cards de Produtos — renderização condicional por módulo */}
         <h2 className="text-lg font-semibold text-gray-700 mb-4">Seus Produtos</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <div className="bg-white rounded-xl p-6 shadow-sm border-2 border-green-500">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <Phone className="w-6 h-6 text-green-600" />
+          {modulosAtivos.includes('motor_ativo') && (
+            <div className="bg-white rounded-xl p-6 shadow-sm border-2 border-green-500">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                  <Phone className="w-6 h-6 text-green-600" />
+                </div>
+                <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">
+                  ATIVO
+                </span>
               </div>
-              <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">
-                ATIVO
-              </span>
+              <h3 className="font-semibold text-gray-800">Discador URA</h3>
+              <p className="text-sm text-gray-500 mt-1">{cliente?.canais_simultaneos || 0} canais simultâneos</p>
             </div>
-            <h3 className="font-semibold text-gray-800">Discador URA</h3>
-            <p className="text-sm text-gray-500 mt-1">{cliente?.canais_simultaneos || 0} canais simultâneos</p>
-          </div>
+          )}
 
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 opacity-60">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
-                <MessageSquare className="w-6 h-6 text-gray-400" />
+          {modulosAtivos.includes('prospectador') && (
+            <div
+              className="bg-white rounded-xl p-6 shadow-sm border-2 border-blue-500 cursor-pointer hover:shadow-md transition"
+              onClick={() => router.push('/prospectador')}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <Users className="w-6 h-6 text-blue-600" />
+                </div>
+                <span className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+                  ATIVO
+                </span>
               </div>
-              <span className="px-3 py-1 bg-gray-100 text-gray-500 text-xs font-medium rounded-full">
-                EM BREVE
-              </span>
+              <h3 className="font-semibold text-gray-800">Prospectador</h3>
+              <p className="text-sm text-gray-500 mt-1">Google Maps + WhatsApp</p>
             </div>
-            <h3 className="font-semibold text-gray-400">Disparo WhatsApp</h3>
-            <p className="text-sm text-gray-400 mt-1">Em breve</p>
-          </div>
-
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 opacity-60">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
-                <Mail className="w-6 h-6 text-gray-400" />
-              </div>
-              <span className="px-3 py-1 bg-gray-100 text-gray-500 text-xs font-medium rounded-full">
-                EM BREVE
-              </span>
-            </div>
-            <h3 className="font-semibold text-gray-400">Disparo Email</h3>
-            <p className="text-sm text-gray-400 mt-1">Em breve</p>
-          </div>
+          )}
         </div>
 
         {/* Relatórios */}
