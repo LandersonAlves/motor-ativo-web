@@ -23,7 +23,9 @@ import {
   AlertCircle,
   Save,
   Plus,
-  FolderOpen
+  FolderOpen,
+  Image,
+  Music
 } from 'lucide-react'
 
 export default function DashboardPage() {
@@ -49,7 +51,13 @@ export default function DashboardPage() {
   })
   const [mostrarConfig, setMostrarConfig] = useState(false)
   const [mostrarNovaCampanha, setMostrarNovaCampanha] = useState(false)
-  const [novaCampanhaNome, setNovaCampanhaNome] = useState('')
+  const [novaCampanha, setNovaCampanha] = useState({
+    nome: '',
+    imagem_url: '',
+    contexto_ura: '',
+    cadencia_segundos: '30',
+    canais_simultaneos: '10'
+  })
   const [criandoCampanha, setCriandoCampanha] = useState(false)
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle')
   const router = useRouter()
@@ -259,9 +267,9 @@ export default function DashboardPage() {
   }
 
   const handleCriarCampanha = async () => {
-    if (!novaCampanhaNome.trim() || !cliente) return
+    if (!novaCampanha.nome.trim() || !cliente) return
     
-    const nomeFormatado = novaCampanhaNome.trim().toLowerCase().replace(/\s+/g, '_')
+    const nomeFormatado = novaCampanha.nome.trim().toLowerCase().replace(/\s+/g, '_')
     
     setCriandoCampanha(true)
     try {
@@ -270,14 +278,18 @@ export default function DashboardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           cliente_id: cliente.cliente_id,
-          nome_campanha: nomeFormatado
+          nome_campanha: nomeFormatado,
+          imagem_url: novaCampanha.imagem_url || '',
+          contexto_ura: novaCampanha.contexto_ura || '',
+          cadencia_segundos: novaCampanha.cadencia_segundos || '30',
+          canais_simultaneos: novaCampanha.canais_simultaneos || '10'
         })
       })
       
       if (response.ok) {
         alert(`Campanha "${nomeFormatado}" criada com sucesso!`)
         setMostrarNovaCampanha(false)
-        setNovaCampanhaNome('')
+        setNovaCampanha({ nome: '', imagem_url: '', contexto_ura: '', cadencia_segundos: '30', canais_simultaneos: '10' })
         carregarCampanhas(cliente.cliente_id)
         setCampanhaSelecionada(nomeFormatado)
       } else {
@@ -571,6 +583,19 @@ export default function DashboardPage() {
                       {campanha.status}
                     </span>
                   </div>
+                  {/* Indicadores de flyer e áudio */}
+                  <div className="flex items-center gap-2 mt-2">
+                    {campanha.imagem_url && (
+                      <span className="flex items-center gap-1 text-xs text-green-600">
+                        <Image className="w-3 h-3" /> Flyer
+                      </span>
+                    )}
+                    {campanha.contexto_ura && (
+                      <span className="flex items-center gap-1 text-xs text-purple-600">
+                        <Music className="w-3 h-3" /> Áudio
+                      </span>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -848,7 +873,7 @@ export default function DashboardPage() {
       {/* Modal Nova Campanha */}
       {mostrarNovaCampanha && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b">
               <h3 className="text-xl font-bold text-gray-800">Nova Campanha</h3>
               <button 
@@ -859,16 +884,76 @@ export default function DashboardPage() {
               </button>
             </div>
             <div className="p-6 space-y-4">
+
+              {/* Nome */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nome da Campanha</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nome da Campanha *</label>
                 <input
                   type="text"
-                  value={novaCampanhaNome}
-                  onChange={(e) => setNovaCampanhaNome(e.target.value)}
+                  value={novaCampanha.nome}
+                  onChange={(e) => setNovaCampanha({...novaCampanha, nome: e.target.value})}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                   placeholder="Ex: Promoção Maio, Clientes Inativos..."
                 />
-                <p className="text-xs text-gray-400 mt-1">O nome será formatado automaticamente (sem espaços ou acentos)</p>
+                <p className="text-xs text-gray-400 mt-1">Será formatado automaticamente (sem espaços ou acentos)</p>
+              </div>
+
+              {/* Flyer */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <span className="flex items-center gap-1"><Image className="w-4 h-4 text-green-500" /> URL do Flyer (imagem)</span>
+                </label>
+                <input
+                  type="url"
+                  value={novaCampanha.imagem_url}
+                  onChange={(e) => setNovaCampanha({...novaCampanha, imagem_url: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  placeholder="https://..."
+                />
+                <p className="text-xs text-gray-400 mt-1">Cole a URL pública da imagem (drive, imgur, servidor...)</p>
+              </div>
+
+              {/* Áudio */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <span className="flex items-center gap-1"><Music className="w-4 h-4 text-purple-500" /> Contexto URA (áudio)</span>
+                </label>
+                <input
+                  type="text"
+                  value={novaCampanha.contexto_ura}
+                  onChange={(e) => setNovaCampanha({...novaCampanha, contexto_ura: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  placeholder="Ex: ura-empresa_campanha_maio"
+                />
+                <p className="text-xs text-gray-400 mt-1">Nome do contexto URA criado no Asterisk para esta campanha</p>
+              </div>
+
+              {/* Cadência e Canais */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Cadência (segundos)</label>
+                  <input
+                    type="number"
+                    value={novaCampanha.cadencia_segundos}
+                    onChange={(e) => setNovaCampanha({...novaCampanha, cadencia_segundos: e.target.value})}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    min="10"
+                    max="300"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Intervalo entre ligações</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Canais Simultâneos</label>
+                  <input
+                    type="number"
+                    value={novaCampanha.canais_simultaneos}
+                    onChange={(e) => setNovaCampanha({...novaCampanha, canais_simultaneos: e.target.value})}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    min="1"
+                    max="100"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Ligações ao mesmo tempo</p>
+                </div>
               </div>
 
               <div className="flex justify-end gap-3 pt-4">
@@ -881,7 +966,7 @@ export default function DashboardPage() {
                 </button>
                 <button
                   onClick={handleCriarCampanha}
-                  disabled={criandoCampanha || !novaCampanhaNome.trim()}
+                  disabled={criandoCampanha || !novaCampanha.nome.trim()}
                   className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
                 >
                   <Plus className="w-4 h-4" />
