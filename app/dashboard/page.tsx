@@ -26,7 +26,8 @@ import {
   FolderOpen,
   Image,
   Music,
-  Camera
+  Camera,
+  Mic
 } from 'lucide-react'
 
 export default function DashboardPage() {
@@ -62,6 +63,7 @@ export default function DashboardPage() {
   const [criandoCampanha, setCriandoCampanha] = useState(false)
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle')
   const [uploadFlyerStatus, setUploadFlyerStatus] = useState<Record<string, 'idle' | 'uploading' | 'success' | 'error'>>({})
+  const [uploadAudioStatus, setUploadAudioStatus] = useState<Record<string, 'idle' | 'uploading' | 'success' | 'error'>>({})
   const router = useRouter()
 
   const parseFile = (text: string) => {
@@ -239,6 +241,44 @@ export default function DashboardPage() {
       console.error('Erro no upload do flyer:', error)
       setUploadFlyerStatus(prev => ({ ...prev, [nomeCampanha]: 'error' }))
       alert('Erro ao fazer upload do flyer.')
+    }
+
+    e.target.value = ''
+  }
+
+  const handleUploadAudio = async (e: React.ChangeEvent<HTMLInputElement>, nomeCampanha: string) => {
+    const file = e.target.files?.[0]
+    if (!file || !cliente) return
+
+    setUploadAudioStatus(prev => ({ ...prev, [nomeCampanha]: 'uploading' }))
+
+    try {
+      const formData = new FormData()
+      formData.append('audio', file)
+      formData.append('cliente_id', cliente.cliente_id)
+      formData.append('nome_campanha', nomeCampanha)
+
+      const response = await fetch('https://n8n.we7tech.com.br/webhook/918ed357-de40-49cc-a2b1-87c99b519f2c', {
+        method: 'POST',
+        body: formData
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.sucesso) {
+        setUploadAudioStatus(prev => ({ ...prev, [nomeCampanha]: 'success' }))
+        setTimeout(() => {
+          setUploadAudioStatus(prev => ({ ...prev, [nomeCampanha]: 'idle' }))
+          carregarCampanhas(cliente.cliente_id)
+        }, 2000)
+      } else {
+        setUploadAudioStatus(prev => ({ ...prev, [nomeCampanha]: 'error' }))
+        alert('Erro ao fazer upload do áudio.')
+      }
+    } catch (error) {
+      console.error('Erro no upload do áudio:', error)
+      setUploadAudioStatus(prev => ({ ...prev, [nomeCampanha]: 'error' }))
+      alert('Erro ao fazer upload do áudio.')
     }
 
     e.target.value = ''
@@ -512,8 +552,9 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  {/* Indicadores e botão de upload */}
+                  {/* Indicadores e botões de upload */}
                   <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+                    {/* Indicadores de mídia */}
                     <div className="flex items-center gap-2">
                       {campanha.imagem_url && (
                         <span className="flex items-center gap-1 text-xs text-green-600">
@@ -527,8 +568,9 @@ export default function DashboardPage() {
                       )}
                     </div>
 
-                    {/* Botão upload flyer */}
-                    <div>
+                    {/* Botões de upload lado a lado */}
+                    <div className="flex items-center gap-1">
+                      {/* Upload flyer */}
                       <input
                         type="file"
                         accept="image/*"
@@ -546,7 +588,29 @@ export default function DashboardPage() {
                         ) : uploadFlyerStatus[campanha.nome_campanha] === 'success' ? (
                           <><CheckCircle className="w-3 h-3 text-green-600" /> Enviado!</>
                         ) : (
-                          <><Camera className="w-3 h-3" /> {campanha.imagem_url ? 'Trocar flyer' : 'Upload flyer'}</>
+                          <><Camera className="w-3 h-3" /> {campanha.imagem_url ? 'Flyer' : 'Flyer'}</>
+                        )}
+                      </label>
+
+                      {/* Upload áudio */}
+                      <input
+                        type="file"
+                        accept="audio/*,.mp3,.ogg,.wav,.m4a"
+                        id={`audio-upload-${campanha.nome_campanha}`}
+                        className="hidden"
+                        onChange={(e) => handleUploadAudio(e, campanha.nome_campanha)}
+                      />
+                      <label
+                        htmlFor={`audio-upload-${campanha.nome_campanha}`}
+                        className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 hover:bg-purple-100 hover:text-purple-700 text-gray-600 rounded cursor-pointer transition"
+                        title={campanha.contexto_ura ? 'Substituir áudio da URA' : 'Upload áudio da URA'}
+                      >
+                        {uploadAudioStatus[campanha.nome_campanha] === 'uploading' ? (
+                          <><RefreshCw className="w-3 h-3 animate-spin" /> Enviando...</>
+                        ) : uploadAudioStatus[campanha.nome_campanha] === 'success' ? (
+                          <><CheckCircle className="w-3 h-3 text-purple-600" /> Enviado!</>
+                        ) : (
+                          <><Mic className="w-3 h-3" /> Áudio</>
                         )}
                       </label>
                     </div>
@@ -741,13 +805,6 @@ export default function DashboardPage() {
                 <input type="text" value={novaCampanha.nome} onChange={(e) => setNovaCampanha({...novaCampanha, nome: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Ex: Promoção Maio, Clientes Inativos..." />
                 <p className="text-xs text-gray-400 mt-1">Será formatado automaticamente (sem espaços ou acentos)</p>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  <span className="flex items-center gap-1"><Music className="w-4 h-4 text-purple-500" /> Contexto URA (áudio)</span>
-                </label>
-                <input type="text" value={novaCampanha.contexto_ura} onChange={(e) => setNovaCampanha({...novaCampanha, contexto_ura: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Ex: ura-empresa_campanha_maio" />
-                <p className="text-xs text-gray-400 mt-1">Nome do contexto URA no Asterisk. O flyer pode ser feito upload após criar a campanha.</p>
-              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Cadência (segundos)</label>
@@ -759,6 +816,11 @@ export default function DashboardPage() {
                   <input type="number" value={novaCampanha.canais_simultaneos} onChange={(e) => setNovaCampanha({...novaCampanha, canais_simultaneos: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" min="1" max="100" />
                   <p className="text-xs text-gray-400 mt-1">Ligações ao mesmo tempo</p>
                 </div>
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-xs text-blue-700">
+                  <strong>💡 Dica:</strong> Após criar a campanha, use os botões <strong>Flyer</strong> e <strong>Áudio</strong> no card para fazer upload das mídias.
+                </p>
               </div>
               <div className="flex justify-end gap-3 pt-4">
                 <button onClick={() => setMostrarNovaCampanha(false)} className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition">Cancelar</button>
