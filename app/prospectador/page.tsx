@@ -12,13 +12,10 @@ import {
   Play,
   Pause,
   StopCircle,
-  Settings,
   CheckCircle,
   XCircle,
   Users,
-  Phone,
-  FolderOpen,
-  Save
+  Phone
 } from 'lucide-react'
 
 export default function ProspectadorPage() {
@@ -32,7 +29,6 @@ export default function ProspectadorPage() {
   const [novoMailing, setNovoMailing] = useState({
     nome: '',
     localizacao: '',
-    nichos: '',
     fontes_ativas: 'google_maps'
   })
   const [nichoInput, setNichoInput] = useState('')
@@ -106,7 +102,7 @@ export default function ProspectadorPage() {
       })
       if (response.ok) {
         setMostrarNovoMailing(false)
-        setNovoMailing({ nome: '', localizacao: '', nichos: '', fontes_ativas: 'google_maps' })
+        setNovoMailing({ nome: '', localizacao: '', fontes_ativas: 'google_maps' })
         setNichosList([])
         carregarMailings(cliente.cliente_id)
       } else {
@@ -118,22 +114,58 @@ export default function ProspectadorPage() {
     setCriandoMailing(false)
   }
 
-  const handleAtualizarStatus = async (nomeMailing: string, novoStatus: string) => {
+  const handleIniciar = async (nomeMailing: string) => {
+    if (!cliente) return
+    setAtualizandoStatus(prev => ({ ...prev, [nomeMailing]: true }))
+    try {
+      // 1. Atualiza status para rodando
+      await fetch('https://n8n.we7tech.com.br/webhook/atualizar-mailing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cliente_id: cliente.cliente_id, nome_mailing: nomeMailing, status: 'rodando' })
+      })
+      // 2. Chama o motor de coleta
+      await fetch('https://n8n.we7tech.com.br/webhook/rodar-mailing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cliente_id: cliente.cliente_id, nome_mailing: nomeMailing })
+      })
+      await carregarMailings(cliente.cliente_id)
+    } catch (error) {
+      console.error('Erro ao iniciar mailing:', error)
+    }
+    setAtualizandoStatus(prev => ({ ...prev, [nomeMailing]: false }))
+  }
+
+  const handlePausar = async (nomeMailing: string) => {
     if (!cliente) return
     setAtualizandoStatus(prev => ({ ...prev, [nomeMailing]: true }))
     try {
       await fetch('https://n8n.we7tech.com.br/webhook/atualizar-mailing', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cliente_id: cliente.cliente_id,
-          nome_mailing: nomeMailing,
-          status: novoStatus
-        })
+        body: JSON.stringify({ cliente_id: cliente.cliente_id, nome_mailing: nomeMailing, status: 'pausado' })
       })
       await carregarMailings(cliente.cliente_id)
     } catch (error) {
-      console.error('Erro ao atualizar status:', error)
+      console.error('Erro ao pausar mailing:', error)
+    }
+    setAtualizandoStatus(prev => ({ ...prev, [nomeMailing]: false }))
+  }
+
+  const handleEncerrar = async (nomeMailing: string) => {
+    if (!cliente) return
+    if (!confirm(`Encerrar o mailing "${nomeMailing}"? Esta ação não pode ser desfeita.`)) return
+    setAtualizandoStatus(prev => ({ ...prev, [nomeMailing]: true }))
+    try {
+      await fetch('https://n8n.we7tech.com.br/webhook/atualizar-mailing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cliente_id: cliente.cliente_id, nome_mailing: nomeMailing, status: 'encerrado' })
+      })
+      await carregarMailings(cliente.cliente_id)
+    } catch (error) {
+      console.error('Erro ao encerrar mailing:', error)
     }
     setAtualizandoStatus(prev => ({ ...prev, [nomeMailing]: false }))
   }
@@ -176,29 +208,23 @@ export default function ProspectadorPage() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            {/* Navegação entre módulos */}
             <button onClick={() => router.push('/dashboard')} className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition">
-              <Phone className="w-4 h-4" />
-              Disparador
+              <Phone className="w-4 h-4" /> Disparador
             </button>
             <button className="flex items-center gap-2 px-3 py-1.5 text-sm text-blue-600 bg-blue-50 rounded-lg font-medium">
-              <Users className="w-4 h-4" />
-              Prospectador
+              <Users className="w-4 h-4" /> Prospectador
             </button>
             <button onClick={() => carregarDados(cliente?.cliente_id || usuario.cliente_id)} className="p-2 text-gray-500 hover:text-gray-700" title="Atualizar">
               <RefreshCw className="w-5 h-5" />
             </button>
             <button onClick={handleLogout} className="flex items-center gap-2 text-gray-600 hover:text-red-600 transition">
-              <LogOut className="w-5 h-5" />
-              <span className="text-sm">Sair</span>
+              <LogOut className="w-5 h-5" /><span className="text-sm">Sair</span>
             </button>
           </div>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8">
-
-        {/* Mailings */}
         <div className="bg-white rounded-xl p-6 shadow-sm mb-6">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
@@ -206,8 +232,7 @@ export default function ProspectadorPage() {
               <h2 className="text-lg font-semibold text-gray-800">Seus Mailings</h2>
             </div>
             <button onClick={() => setMostrarNovoMailing(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
-              <Plus className="w-4 h-4" />
-              Novo Mailing
+              <Plus className="w-4 h-4" /> Novo Mailing
             </button>
           </div>
 
@@ -266,7 +291,7 @@ export default function ProspectadorPage() {
                     <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
                       {mailing.status === 'rodando' ? (
                         <button
-                          onClick={() => handleAtualizarStatus(mailing.nome_mailing, 'pausado')}
+                          onClick={() => handlePausar(mailing.nome_mailing)}
                           disabled={atualizandoStatus[mailing.nome_mailing]}
                           className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg text-sm transition disabled:opacity-50"
                         >
@@ -275,7 +300,7 @@ export default function ProspectadorPage() {
                         </button>
                       ) : (
                         <button
-                          onClick={() => handleAtualizarStatus(mailing.nome_mailing, 'rodando')}
+                          onClick={() => handleIniciar(mailing.nome_mailing)}
                           disabled={atualizandoStatus[mailing.nome_mailing]}
                           className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm transition disabled:opacity-50"
                         >
@@ -284,7 +309,7 @@ export default function ProspectadorPage() {
                         </button>
                       )}
                       <button
-                        onClick={() => { if (confirm(`Encerrar o mailing "${mailing.nome_mailing}"?`)) handleAtualizarStatus(mailing.nome_mailing, 'encerrado') }}
+                        onClick={() => handleEncerrar(mailing.nome_mailing)}
                         disabled={atualizandoStatus[mailing.nome_mailing]}
                         className="p-2 border border-red-200 text-red-500 hover:bg-red-50 rounded-lg transition disabled:opacity-50"
                         title="Encerrar mailing"
@@ -296,9 +321,7 @@ export default function ProspectadorPage() {
 
                   {/* Info da aba */}
                   {mailing.sheet_aba && (
-                    <div className="pt-1">
-                      <p className="text-xs text-gray-400">Aba na planilha: <span className="font-mono text-gray-600">{mailing.sheet_aba}</span></p>
-                    </div>
+                    <p className="text-xs text-gray-400">Aba na planilha: <span className="font-mono text-gray-600">{mailing.sheet_aba}</span></p>
                   )}
                 </div>
               ))}
@@ -320,48 +343,23 @@ export default function ProspectadorPage() {
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nome do Mailing *</label>
-                <input
-                  type="text"
-                  value={novoMailing.nome}
-                  onChange={(e) => setNovoMailing({ ...novoMailing, nome: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                  placeholder="Ex: Clínicas Vila Madalena"
-                />
+                <input type="text" value={novoMailing.nome} onChange={(e) => setNovoMailing({ ...novoMailing, nome: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Ex: Clínicas Vila Madalena" />
                 <p className="text-xs text-gray-400 mt-1">Formatado automaticamente para nome da aba na planilha</p>
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  <MapPin className="w-4 h-4 inline mr-1 text-gray-400" />
-                  Localização *
+                  <MapPin className="w-4 h-4 inline mr-1 text-gray-400" />Localização *
                 </label>
-                <input
-                  type="text"
-                  value={novoMailing.localizacao}
-                  onChange={(e) => setNovoMailing({ ...novoMailing, localizacao: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                  placeholder="Ex: Vila Madalena, São Paulo ou Rua Atílio Piffer, Casa Verde"
-                />
+                <input type="text" value={novoMailing.localizacao} onChange={(e) => setNovoMailing({ ...novoMailing, localizacao: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Ex: Vila Madalena, São Paulo" />
                 <p className="text-xs text-gray-400 mt-1">Uma localização por mailing — rua, bairro, cidade ou CEP</p>
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  <Tag className="w-4 h-4 inline mr-1 text-gray-400" />
-                  Nichos
+                  <Tag className="w-4 h-4 inline mr-1 text-gray-400" />Nichos
                 </label>
                 <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={nichoInput}
-                    onChange={(e) => setNichoInput(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAdicionarNicho() } }}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                    placeholder="Ex: clínica de estética"
-                  />
-                  <button onClick={handleAdicionarNicho} className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition text-sm">
-                    Adicionar
-                  </button>
+                  <input type="text" value={nichoInput} onChange={(e) => setNichoInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAdicionarNicho() } }} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Ex: clínica de estética" />
+                  <button onClick={handleAdicionarNicho} className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition text-sm">Adicionar</button>
                 </div>
                 {nichosList.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-2">
@@ -374,56 +372,37 @@ export default function ProspectadorPage() {
                   </div>
                 )}
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Fontes de Dados</label>
                 <div className="space-y-2">
                   <label className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
-                    <input
-                      type="checkbox"
-                      checked={novoMailing.fontes_ativas.includes('google_maps')}
-                      onChange={(e) => {
-                        const fontes = novoMailing.fontes_ativas.split(',').filter(f => f.trim())
-                        if (e.target.checked) { if (!fontes.includes('google_maps')) fontes.push('google_maps') }
-                        else { const idx = fontes.indexOf('google_maps'); if (idx > -1) fontes.splice(idx, 1) }
-                        setNovoMailing({ ...novoMailing, fontes_ativas: fontes.join(',') })
-                      }}
-                      className="w-4 h-4 text-blue-600"
-                    />
+                    <input type="checkbox" checked={novoMailing.fontes_ativas.includes('google_maps')} onChange={(e) => {
+                      const fontes = novoMailing.fontes_ativas.split(',').filter(f => f.trim())
+                      if (e.target.checked) { if (!fontes.includes('google_maps')) fontes.push('google_maps') }
+                      else { const idx = fontes.indexOf('google_maps'); if (idx > -1) fontes.splice(idx, 1) }
+                      setNovoMailing({ ...novoMailing, fontes_ativas: fontes.join(',') })
+                    }} className="w-4 h-4 text-blue-600" />
                     <span className="text-sm">📍 Google Maps</span>
                   </label>
                   <label className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
-                    <input
-                      type="checkbox"
-                      checked={novoMailing.fontes_ativas.includes('youtube')}
-                      onChange={(e) => {
-                        const fontes = novoMailing.fontes_ativas.split(',').filter(f => f.trim())
-                        if (e.target.checked) { if (!fontes.includes('youtube')) fontes.push('youtube') }
-                        else { const idx = fontes.indexOf('youtube'); if (idx > -1) fontes.splice(idx, 1) }
-                        setNovoMailing({ ...novoMailing, fontes_ativas: fontes.join(',') })
-                      }}
-                      className="w-4 h-4 text-blue-600"
-                    />
+                    <input type="checkbox" checked={novoMailing.fontes_ativas.includes('youtube')} onChange={(e) => {
+                      const fontes = novoMailing.fontes_ativas.split(',').filter(f => f.trim())
+                      if (e.target.checked) { if (!fontes.includes('youtube')) fontes.push('youtube') }
+                      else { const idx = fontes.indexOf('youtube'); if (idx > -1) fontes.splice(idx, 1) }
+                      setNovoMailing({ ...novoMailing, fontes_ativas: fontes.join(',') })
+                    }} className="w-4 h-4 text-blue-600" />
                     <span className="text-sm">▶️ YouTube</span>
                   </label>
                 </div>
               </div>
-
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <p className="text-xs text-blue-700">
-                  <strong>💡 Dica:</strong> Após criar o mailing, clique em <strong>Iniciar</strong> no card para começar a coletar leads. Os leads aparecerão na aba <strong>{novoMailing.nome ? novoMailing.nome.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '') : 'nome_mailing'}</strong> da sua planilha.
+                  <strong>💡 Dica:</strong> Após criar, clique em <strong>Iniciar</strong> no card para começar a coletar leads. Os leads aparecerão na aba <strong>{novoMailing.nome ? novoMailing.nome.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '') : 'nome_mailing'}</strong> da sua planilha.
                 </p>
               </div>
-
               <div className="flex justify-end gap-3 pt-4">
-                <button onClick={() => { setMostrarNovoMailing(false); setNichosList([]) }} className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition">
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleCriarMailing}
-                  disabled={criandoMailing || !novoMailing.nome.trim() || !novoMailing.localizacao.trim()}
-                  className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
-                >
+                <button onClick={() => { setMostrarNovoMailing(false); setNichosList([]) }} className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition">Cancelar</button>
+                <button onClick={handleCriarMailing} disabled={criandoMailing || !novoMailing.nome.trim() || !novoMailing.localizacao.trim()} className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50">
                   <Plus className="w-4 h-4" />
                   {criandoMailing ? 'Criando...' : 'Criar Mailing'}
                 </button>
